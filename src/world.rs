@@ -1,40 +1,46 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-pub fn populate_from_file(filename: String) -> [[u8; 75]; 75] 
-{
-    let mut newworld = [[0u8; 75]; 75];
-    let file = File::open(filename).unwrap();
-    let reader = BufReader::new(file);
-    let mut pairs:  Vec<(usize, usize)> = Vec::new();
-    for (index, line) in reader.lines().enumerate() {
-        let l = line.unwrap();
-        let mut words = l.split_whitespace();
-        let left = words.next().unwrap();
-        let right = words.next().unwrap();
-        pairs.push((left.parse::<usize>().unwrap(), right.parse::<usize>().unwrap()));
-    }
+pub const SIZE: usize = 75;
 
-    for i in 0..74 {
-        for j in 0..74 {
-            newworld[i][j] = 0;
-        }
-    }
+pub type World = [[u8; SIZE]; SIZE];
 
-    for (x,y) in pairs {
-        newworld[x][y] = 1;
-    }
-    newworld
+pub fn new_world() -> World {
+    [[0u8; SIZE]; SIZE]
 }
 
-pub fn census(world: [[u8; 75]; 75]) -> u16
-{
-    let mut count = 0;
+pub fn populate_random() -> World {
+    let mut world = new_world();
+    for i in 0..SIZE {
+        for j in 0..SIZE {
+            world[i][j] = if macroquad::rand::gen_range(0u8, 2) == 1 { 1 } else { 0 };
+        }
+    }
+    world
+}
 
-    for i in 0..74 {
-        for j in 0..74 {
-            if world[i][j] == 1
-            {
+pub fn populate_from_file(filename: &str) -> World {
+    let mut world = new_world();
+    let file = File::open(filename).unwrap();
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        let l = line.unwrap();
+        let mut words = l.split_whitespace();
+        let x: usize = words.next().unwrap().parse().unwrap();
+        let y: usize = words.next().unwrap().parse().unwrap();
+        if x < SIZE && y < SIZE {
+            world[x][y] = 1;
+        }
+    }
+    world
+}
+
+pub fn census(world: &World) -> u32 {
+    let mut count = 0u32;
+    for i in 0..SIZE {
+        for j in 0..SIZE {
+            if world[i][j] == 1 {
                 count += 1;
             }
         }
@@ -42,47 +48,28 @@ pub fn census(world: [[u8; 75]; 75]) -> u16
     count
 }
 
-pub fn generation(world: [[u8; 75]; 75]) -> [[u8; 75]; 75]
-{
-    let mut newworld = [[0u8; 75]; 75];
+pub fn generation(world: &World) -> World {
+    let mut newworld = new_world();
 
-    for i in 0..74 {
-        for j in 0..74 {
-            let mut count = 0;
-            if i>0 {
-                count = count + world[i-1][j];
-            }
-            if i>0 && j>0 {
-                count = count + world[i-1][j-1];
-            }
-            if i>0 && j<74 {
-                count = count + world[i-1][j+1];
-            }
-            if i<74 && j>0 {
-                count = count + world[i+1][j-1]
-            }
-            if i<74 {
-                count = count + world[i+1][j];
-            }
-            if i<74 && j<74 {
-                count = count + world[i+1][j+1];
-            }
-            if j>0 {
-                count = count + world[i][j-1];
-            }
-            if j<74 {
-                count = count + world[i][j+1];
+    for i in 0..SIZE {
+        for j in 0..SIZE {
+            let mut count: u8 = 0;
+            for di in -1i32..=1 {
+                for dj in -1i32..=1 {
+                    if di == 0 && dj == 0 {
+                        continue;
+                    }
+                    let ni = i as i32 + di;
+                    let nj = j as i32 + dj;
+                    if ni >= 0 && ni < SIZE as i32 && nj >= 0 && nj < SIZE as i32 {
+                        count += world[ni as usize][nj as usize];
+                    }
+                }
             }
 
-            newworld[i][j] = 0;
-
-            if (count <2) && (world[i][j] == 1) {
-                newworld[i][j] = 0;
-            }
             if world[i][j] == 1 && (count == 2 || count == 3) {
                 newworld[i][j] = 1;
-            }
-            if (world[i][j] == 0) && (count == 3) {
+            } else if world[i][j] == 0 && count == 3 {
                 newworld[i][j] = 1;
             }
         }
